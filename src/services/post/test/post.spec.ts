@@ -14,14 +14,13 @@ import {
   WhenPostIsDeletedTestBuilder,
 } from './post.test-builder';
 import { config } from 'src/config';
-import { AppModule } from 'src/app.module';
 
 describe('`Post`', () => {
   let postService: PostService;
 
   beforeAll(async () => {
     const module: TestingModule = await Test.createTestingModule({
-      imports: [AppModule],
+      imports: [PostModule],
     }).compile();
 
     postService = module.get<PostService>(PostService);
