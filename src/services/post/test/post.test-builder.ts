@@ -124,7 +124,6 @@ export class WhenSequenceOfPostAreCreatedTestBuilder {
   }
 
   async getActualPostsLength() {
-    console.log('this.postService.getTotalPosts()', await this.postService.getTotalPosts());
     return this.postService.getTotalPosts();
   }
 

@@ -127,8 +127,6 @@ export class PostRepository {
       { $group: { _id: null, total: { $sum: 1 } } },
     ]);
 
-    console.log('aggResult', aggResult[0]?.total);
-
     return aggResult[0]?.total ?? 0;
   }
 
