@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import PostService, { Post } from '../post.service';
+import { PostService, Post } from '../post.service';
 import { transformDateToMs } from 'src/services/common/date-to-ms';
 import Pagination from 'src/services/common/types/pagination';
 
@@ -47,6 +47,7 @@ export class WhenPostIsCreatedTestBuilder {
   getExpectedPost() {
     return {
       ...posts[0],
+      postId: this.expect.any(String),
       createdAt: this.expect.any(Date),
       lastUpdatedAt: this.expect.any(Date),
     };
@@ -83,17 +84,21 @@ export class WhenSequenceOfPostAreCreatedTestBuilder {
   private timeCreationStartedInMs: number | null = null;
   private timeCreationEndedInMs: number | null = null;
   private postService: PostService;
+  private postsInDescendingOrderOfCreation: Post[] = new Array(posts.length);
 
   async setUp(postService: PostService) {
+    this.postService = postService;
+
     this.timeCreationStartedInMs = transformDateToMs(new Date());
 
     for (let i = 0; i < posts.length; i++) {
-      await postService.createPost(posts[i]);
+      const post = await postService.createPost(posts[i]);
+      const position = posts.length - i - 1;
+
+      this.postsInDescendingOrderOfCreation[position] = post;
     }
 
     this.timeCreationEndedInMs = transformDateToMs(new Date());
-
-    this.postService = postService;
   }
 
   async cleanUp(postService: PostService) {
@@ -115,15 +120,11 @@ export class WhenSequenceOfPostAreCreatedTestBuilder {
   }
 
   getExpectedPostsUsingValidPagination(pagination: Pagination) {
-    return _.map(posts.slice(pagination.offset), (post) => {
-      const createdAt = expect.any(Date);
-      const updatedAt = expect.any(Date);
-
-      return { ...post, createdAt, updatedAt };
-    });
+    return this.postsInDescendingOrderOfCreation.slice(pagination.offset);
   }
 
-  getActualPostsLength() {
+  async getActualPostsLength() {
+    console.log('this.postService.getTotalPosts()', await this.postService.getTotalPosts());
     return this.postService.getTotalPosts();
   }
 
@@ -150,17 +151,17 @@ export class WhenSequenceOfPostAreCreatedTestBuilder {
 
   async getActualUpdatedAt(index: number) {
     const posts = await this.postService.getPosts({ offset: index, limit: 1 });
-    return transformDateToMs(posts[0]?.updatedAt);
+    return transformDateToMs(posts[0]?.lastUpdatedAt);
   }
 
   async getExceptedLowerBoundCreationTime(index: number) {
-    if (index === 0) return this.timeCreationStartedInMs as number;
-    return this.getActualCreatedAt(index - 1);
+    if (index === this.getExpectedPostsLength() - 1) return this.timeCreationStartedInMs as number;
+    return this.getActualCreatedAt(index + 1);
   }
 
   async getExceptedUpperBoundCreationTime(index: number) {
-    if (index === this.getExpectedPostsLength() - 1) return this.timeCreationStartedInMs as number;
-    return this.getActualCreatedAt(index + 1);
+    if (index === 0) return this.timeCreationEndedInMs as number;
+    return this.getActualCreatedAt(index - 1);
   }
 }
 
@@ -170,9 +171,9 @@ export class WhenPostIsUpdatedTestBuilder {
   private resultOfUpdatePost: Post;
   private postService: PostService;
   private expect: jest.Expect;
-  private postToUpdate: Post;
   private updateStartedTimeInMs: number | null = null;
   private updateEndedTimeInMs: number | null = null;
+  private postsInDescendingOrderOfCreation: Post[] = new Array(posts.length);
   private update = {
     title: 'Edited Title',
     content: 'Edited content',
@@ -183,16 +184,14 @@ export class WhenPostIsUpdatedTestBuilder {
     this.expect = expect;
 
     for (let i = 0; i < posts.length; i++) {
-      await postService.createPost(posts[i]);
+      const post = await postService.createPost(posts[i]);
+      const position = posts.length - i - 1;
+
+      this.postsInDescendingOrderOfCreation[position] = post;
     }
 
-    this.postToUpdate = await this.fetchPostOfInterested();
-    this.updateStartedTimeInMs = transformDateToMs(new Date());
-    this.resultOfUpdatePost = await postService.updatePost({
-      ...this.update,
-      postId: this.postToUpdate.postId,
-    });
-    this.updateEndedTimeInMs = transformDateToMs(new Date());
+    await this.updatePostOfInterestAndNoteUpdateTimeRange();
+    await this.updateCreatedPostToReflectUpdate();
   }
 
   getActualResultOfUpdatePost() {
@@ -200,10 +199,8 @@ export class WhenPostIsUpdatedTestBuilder {
   }
 
   getExpectedResultOfUpdatePost() {
-    return {
-      ...this.resultOfUpdatePost,
-      ...this.update,
-    };
+    const post = this.fetchPostOfInterested();
+    return this.setLastUpdateWithAnyDateAtPropFor(post);
   }
 
   async getActualPosts() {
@@ -211,16 +208,13 @@ export class WhenPostIsUpdatedTestBuilder {
   }
 
   async getExpectedPosts() {
-    return _.map(posts, (post, index) => ({
-      ...post,
-      ...this.getUpdateForPostOfIndex(index),
-      createdAt: this.expect.any(Date),
-      lastUpdatedAt: this.expect.any(Date),
-    }));
+    return _.map(this.postsInDescendingOrderOfCreation, (post) => {
+      return this.setLastUpdateWithAnyDateAtPropFor(post);
+    });
   }
 
   async getActualUpdatedAt() {
-    return transformDateToMs(this.resultOfUpdatePost.updatedAt);
+    return transformDateToMs(this.resultOfUpdatePost.lastUpdatedAt);
   }
 
   async getExceptedLowerBoundCreationTime() {
@@ -231,21 +225,38 @@ export class WhenPostIsUpdatedTestBuilder {
     return this.updateEndedTimeInMs as number;
   }
 
-  private getUpdateForPostOfIndex(index: number) {
-    if (index === this.indexOfPostToUpdate) {
-      return this.update;
-    } else {
-      return {};
-    }
+  private setLastUpdateWithAnyDateAtPropFor(post: Post) {
+    const otherProps = _.omit(post, 'lastUpdatedAt');
+    return { lastUpdatedAt: this.expect.any(Date), ...otherProps };
   }
 
-  private async fetchPostOfInterested() {
-    const fetchedPosts = await this.postService.getPosts({
-      offset: this.indexOfPostToUpdate,
-      limit: 1,
+  private fetchPostOfInterested() {
+    return this.postsInDescendingOrderOfCreation[this.indexOfPostToUpdate];
+  }
+
+  private async updatePostOfInterestAndNoteUpdateTimeRange() {
+    this.updateStartedTimeInMs = transformDateToMs(new Date());
+    await this.updatePostOfInterest();
+    this.updateEndedTimeInMs = transformDateToMs(new Date());
+  }
+
+  private async updatePostOfInterest() {
+    const postToUpdate = this.fetchPostOfInterested();
+
+    this.resultOfUpdatePost = await this.postService.updatePost({
+      postId: postToUpdate.postId,
+      updates: { ...this.update },
     });
-    const fetchedPost = fetchedPosts[0];
-    return fetchedPost;
+  }
+
+  private async updateCreatedPostToReflectUpdate() {
+    const postToUpdate = this.fetchPostOfInterested();
+    const updateProps = Object.keys(this.update);
+
+    for (let i = 0; i < updateProps.length; i++) {
+      const updateProp = updateProps[i] as keyof typeof this.update;
+      postToUpdate[updateProp] = this.update[updateProp];
+    }
   }
 }
 
@@ -275,7 +286,8 @@ export class WhenPostIsDeletedTestBuilder {
   }
 
   async deletePostThatDoesNotExist() {
-    this.deleteResult = await this.postService.deletePost({ postId: '63ff5553cdc1798683083fb89' });
+    const postThatDoesNotExistId = '63ff5553cdc1798683083fa1';
+    this.deleteResult = await this.postService.deletePost({ postId: postThatDoesNotExistId });
   }
 
   async getActualDeleteResult() {
@@ -301,22 +313,22 @@ export class WhenPostIsDeletedTestBuilder {
 
 const posts = [
   {
-    userId: '63ff5553cdc1798683083fb5',
+    creatorUserId: '63ff5553cdc1798683083fb5',
     title: 'Title of Post 1',
     content: 'Content of Post 1',
   },
   {
-    userId: '63ff5553cdc1798683083fb6',
+    creatorUserId: '63ff5553cdc1798683083fb6',
     title: 'Title of Post 2',
     content: 'Content of Post 2',
   },
   {
-    userId: '63ff5553cdc1798683083fb7',
+    creatorUserId: '63ff5553cdc1798683083fb7',
     title: 'Title of Post 3',
     content: 'Content of Post 3',
   },
   {
-    userId: '63ff5553cdc1798683083fb8',
+    creatorUserId: '63ff5553cdc1798683083fb8',
     title: 'Title of Post 4',
     content: 'Content of Post 4',
   },

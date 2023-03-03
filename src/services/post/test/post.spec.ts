@@ -1,5 +1,10 @@
+import { Post } from '@nestjs/common';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Test, TestingModule } from '@nestjs/testing';
 import * as _ from 'lodash';
-import PostService from '../post.service';
+import { PostModule } from '../post.module';
+import { postSchema, PostRepository } from '../post.repository';
+import { PostService } from '../post.service';
 import {
   WhenDatabaseIsClearedAfterCreatedTestBuilder,
   WhenSequenceOfPostAreCreatedTestBuilder,
@@ -8,12 +13,20 @@ import {
   WhenPostIsUpdatedTestBuilder,
   WhenPostIsDeletedTestBuilder,
 } from './post.test-builder';
+import { config } from 'src/config';
+import { AppModule } from 'src/app.module';
 
 describe('`Post`', () => {
   let postService: PostService;
 
-  beforeAll(() => {
-    postService = new PostService();
+  beforeAll(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    postService = module.get<PostService>(PostService);
+
+    await postService.clearDb();
   });
 
   describe('When service is starting from origin (no action yet)', () => {
@@ -67,6 +80,10 @@ describe('`Post`', () => {
   describe('When database is cleared after being created', () => {
     const testBuilder3 = new WhenDatabaseIsClearedAfterCreatedTestBuilder();
 
+    beforeAll(async () => {
+      await testBuilder3.setUp(postService);
+    });
+
     it('should have number of documents in database to be 0', () => {
       const actual = testBuilder3.getActualTotalPosts();
       const expected = testBuilder3.getExpectedTotalPosts();
@@ -78,6 +95,7 @@ describe('`Post`', () => {
     const testBuilder4 = new WhenSequenceOfPostAreCreatedTestBuilder();
 
     beforeAll(async () => {
+      await testBuilder4.cleanUp(postService);
       await testBuilder4.setUp(postService);
     });
 
@@ -124,7 +142,7 @@ describe('`Post`', () => {
 
     describe('`getTotalPosts`', () => {
       it('should return correct total posts', async () => {
-        const actual = testBuilder4.getActualPostsLength();
+        const actual = await testBuilder4.getActualPostsLength();
         const expected = testBuilder4.getExpectedPostsLength();
 
         expect(actual).toBe(expected);
@@ -144,7 +162,7 @@ describe('`Post`', () => {
         const actual = testBuilder5.getActualResultOfUpdatePost();
         const expected = testBuilder5.getExpectedResultOfUpdatePost();
 
-        expect(actual).toBe(expected);
+        expect(actual).toEqual(expected);
       });
     });
 
@@ -153,7 +171,7 @@ describe('`Post`', () => {
         const actual = await testBuilder5.getActualPosts();
         const expected = await testBuilder5.getExpectedPosts();
 
-        expect(actual).toBe(expected);
+        expect(actual).toEqual(expected);
       });
     });
 
