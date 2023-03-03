@@ -1,50 +1,87 @@
+import { Injectable } from '@nestjs/common';
+import * as _ from 'lodash';
 import Pagination from 'src/services/common/types/pagination';
+import { ExactlyOne } from 'ts-util-types';
+import { PostRepository } from './post.repository';
 
-export default class PostService {
+@Injectable()
+export class PostService {
+  constructor(private repository: PostRepository) {}
+
   async createPost(post: PostToBeCreated): Promise<Post> {
-    throw new Error();
+    const currentDate = new Date();
+
+    const createdPost: Post = {
+      ...post,
+      createdAt: currentDate,
+      lastUpdatedAt: currentDate,
+    } as Post;
+    const postId = await this.repository.insertOne(createdPost);
+
+    createdPost.postId = postId;
+    return createdPost;
   }
 
   async getPosts(pagination: Pagination): Promise<Post[]> {
-    throw new Error();
+    const posts = await this.repository.findMany(pagination);
+    return _.map(posts, (post) => {
+      return _.pick(post, [
+        'postId',
+        'creatorUserId',
+        'title',
+        'content',
+        'createdAt',
+        'lastUpdatedAt',
+      ]);
+    });
   }
 
   async getTotalPosts(): Promise<number> {
-    throw new Error();
+    return this.repository.getTotalActivePosts();
   }
 
   async updatePost(post: PostToBeUpdated): Promise<Post> {
-    throw new Error();
+    const currentDate = new Date();
+    await this.repository.updateOne(post.postId, { ...post.updates, lastUpdatedAt: currentDate });
+    const updatedPost = (await this.repository.findOneById(post.postId)) as Post;
+    return _.pick(updatedPost, [
+      'postId',
+      'creatorUserId',
+      'title',
+      'content',
+      'createdAt',
+      'lastUpdatedAt',
+    ]);
   }
 
   async deletePost(post: PostToBeDeleted): Promise<boolean> {
-    throw new Error();
+    const updatedColumnResult = await this.repository.deleteOne(post.postId);
+    return updatedColumnResult.wasSuccessful();
   }
 
   async clearDb(): Promise<void> {
-    throw new Error();
+    await this.repository.clearDb();
   }
 }
 
 export interface Post {
-  creatorUserId: string;
   postId: string;
+  creatorUserId: string;
   title: string;
   content: string;
   createdAt: Date;
-  updatedAt: Date;
+  lastUpdatedAt: Date;
 }
 
 export interface PostToBeCreated {
-  userId: string;
+  creatorUserId: string;
   title: string;
   content: string;
 }
 
 export interface PostToBeUpdated {
   postId: string;
-  title: string;
-  content: string;
+  updates: ExactlyOne<{ title: string; content: string }>;
 }
 
 export interface PostToBeDeleted {
