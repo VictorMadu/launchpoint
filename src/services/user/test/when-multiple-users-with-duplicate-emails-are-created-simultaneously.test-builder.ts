@@ -16,17 +16,9 @@ export class WhenMultipleUsersWithDuplicateEmailsAreCreatedSimultaneously {
 
     await this.createMultipleUsersConcurrently();
     await this.setIndexOfCreationsInStatus();
-
-    console.log('creationStatus', JSON.stringify(this.creationStatus, null, 2));
   }
 
   getCreationResultForSuccessfulCreation() {
-    console.log('this.creationStatus.succeeded', this.creationStatus.succeeded);
-    console.log('this.creationResults', this.creationResults);
-    console.log(
-      'this.creationResults[this.creationStatus.succeeded]',
-      this.creationResults[this.creationStatus.succeeded],
-    );
     return this.creationResults[this.creationStatus.succeeded];
   }
 
