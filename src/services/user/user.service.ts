@@ -1,17 +1,23 @@
 import { Injectable } from '@nestjs/common';
+import { UserErrorReason } from './user.error';
+import { UserRepository } from './user.repository';
 
 @Injectable()
 export class UserService {
+  constructor(private userRepository: UserRepository) {}
+
   async createUser(user: UserToBeCreated): Promise<UserCreationResult> {
-    return { getErrorReason: () => null, getUser: () => ({} as User) };
+    const result = await this.userRepository.insertOne(user);
+    return { getErrorReason: () => result.errorReason, getUser: () => result.user };
   }
 
   async findUser(query: FindUserQuery): Promise<UserQueryResult> {
-    return { isUserFound: () => true, getUser: () => ({} as User) };
+    const result = await this.userRepository.findOneById(query.userId);
+    return { isUserFound: () => result.isUserFound, getUser: () => result.user };
   }
 
   async clearDb(): Promise<void> {
-    // throw new Error();
+    await this.userRepository.clearDb();
   }
 }
 
@@ -29,15 +35,8 @@ export interface User {
   createdAt: Date;
 }
 
-export const UserCreationErrorReason = {
-  DUPLICATE_EMAIL: 'DUPLICATE_EMAIL',
-} as const;
-
-export type UserCreationErrorReasonType =
-  (typeof UserCreationErrorReason)[keyof typeof UserCreationErrorReason];
-
 export interface UserCreationResult<T extends boolean = boolean> {
-  getErrorReason(): T extends true ? null : UserCreationErrorReasonType;
+  getErrorReason(): T extends true ? null : UserErrorReason;
   getUser(): T extends true ? User : null;
 }
 
