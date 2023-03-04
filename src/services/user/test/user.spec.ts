@@ -2,7 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { UserModule } from '../user.module';
 import { UserCreationResult, UserService } from '../user.service';
 import { WhenDataBaseIsClearedAfterUsersCreation } from './when-database-is-cleared-after-users-creation.test-builder';
-import { WhenTwoUsersWithDuplicateEmailsAreCreatedSimultaneously } from './when-two-users-with-duplicate-emails-are-created-simultaneously.test-builder';
+import { WhenMultipleUsersWithDuplicateEmailsAreCreatedSimultaneously } from './when-multiple-users-with-duplicate-emails-are-created-simultaneously.test-builder';
 import { WhenUsersAreCreatedTestBuilder } from './when-users-are-created.test-builder';
 
 describe('`UserService (Module)`', () => {
@@ -26,10 +26,10 @@ describe('`UserService (Module)`', () => {
 
     describe('`findUser`', () => {
       it.each(testBuilder1.getCreatedUsersParameters())(
-        'should have created users not exit anymore',
+        'should have created user $email not exit anymore',
         async (parameter) => {
           const actualQueryResult = await testBuilder1.getFindQueryResultUsingParameter(parameter);
-          expect(actualQueryResult.isUserFound()).toBe(true);
+          expect(actualQueryResult.isUserFound()).toBe(false);
           expect(actualQueryResult.getUser()).toEqual(null);
         },
       );
@@ -66,7 +66,7 @@ describe('`UserService (Module)`', () => {
       );
 
       it.each(testBuilder2.getCreatedUserParameters())(
-        'should have created users fall within lower creation bound',
+        'should have created users fall within upper creation bound',
         (parameter) => {
           const actual = testBuilder2.getCreationTimeForCreatedUserWithParameter(parameter);
           const expected = testBuilder2.getUpperCreationBoundForCreatedUserWithParameter(parameter);
@@ -110,11 +110,11 @@ describe('`UserService (Module)`', () => {
   });
 
   describe('When multiple users with duplicate emails are created simultaneously', () => {
-    const testBuilder3 = new WhenTwoUsersWithDuplicateEmailsAreCreatedSimultaneously();
+    const testBuilder3 = new WhenMultipleUsersWithDuplicateEmailsAreCreatedSimultaneously();
 
     beforeAll(async () => {
       await userService.clearDb();
-      testBuilder3.setUp(userService, expect);
+      await testBuilder3.setUp(userService, expect);
     });
 
     it('should have the created user return expected result', () => {

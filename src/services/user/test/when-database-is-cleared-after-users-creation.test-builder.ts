@@ -11,6 +11,7 @@ export class WhenDataBaseIsClearedAfterUsersCreation {
     this.expect = expect;
 
     await this.createUsers();
+    await this.clearDb();
   }
 
   getCreatedUsersParameters() {
@@ -30,6 +31,10 @@ export class WhenDataBaseIsClearedAfterUsersCreation {
         this.createdUsersInAscendingOrderOfCreation[index] = user;
       }),
     );
+  }
+
+  private async clearDb() {
+    await this.userService.clearDb();
   }
 }
 

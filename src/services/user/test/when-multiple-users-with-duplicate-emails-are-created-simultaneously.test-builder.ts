@@ -1,15 +1,10 @@
 import * as _ from 'lodash';
-import {
-  User,
-  UserCreationErrorReason,
-  UserCreationErrorReasonType,
-  UserCreationResult,
-  UserService,
-} from '../user.service';
+import { UserErrorReason } from '../user.error';
+import { User, UserCreationResult, UserService } from '../user.service';
 
 const userEmail = 'user1@gmail.com';
 
-export class WhenTwoUsersWithDuplicateEmailsAreCreatedSimultaneously {
+export class WhenMultipleUsersWithDuplicateEmailsAreCreatedSimultaneously {
   private userService: UserService;
   private expect: jest.Expect;
   private creationResults: UserCreationResult[] = new Array(users.length);
@@ -19,11 +14,19 @@ export class WhenTwoUsersWithDuplicateEmailsAreCreatedSimultaneously {
     this.userService = userService;
     this.expect = expect;
 
-    await this.createTwoUsersConcurrently();
+    await this.createMultipleUsersConcurrently();
     await this.setIndexOfCreationsInStatus();
+
+    console.log('creationStatus', JSON.stringify(this.creationStatus, null, 2));
   }
 
   getCreationResultForSuccessfulCreation() {
+    console.log('this.creationStatus.succeeded', this.creationStatus.succeeded);
+    console.log('this.creationResults', this.creationResults);
+    console.log(
+      'this.creationResults[this.creationStatus.succeeded]',
+      this.creationResults[this.creationStatus.succeeded],
+    );
     return this.creationResults[this.creationStatus.succeeded];
   }
 
@@ -36,7 +39,7 @@ export class WhenTwoUsersWithDuplicateEmailsAreCreatedSimultaneously {
   }
 
   getIsAllErrorReasonSame() {
-    let sharedErrorReason: UserCreationErrorReasonType | null = null;
+    let sharedErrorReason: UserErrorReason | null = null;
     let hasBeenAssignedAValue = false;
 
     for (let i = 0; i < this.creationStatus.failed.length; i++) {
@@ -92,10 +95,10 @@ export class WhenTwoUsersWithDuplicateEmailsAreCreatedSimultaneously {
   }
 
   getExpectedErrorReasonForAllFailedCreation() {
-    return UserCreationErrorReason.DUPLICATE_EMAIL;
+    return UserErrorReason.DUPLICATE_EMAIL;
   }
 
-  private async createTwoUsersConcurrently() {
+  private async createMultipleUsersConcurrently() {
     await Promise.all(
       _.map(users, async (user, index) => {
         const result = await this.userService.createUser(user);

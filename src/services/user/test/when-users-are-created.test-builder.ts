@@ -33,7 +33,7 @@ export class WhenUsersAreCreatedTestBuilder {
   getExpectedCreatedUserResult(parameter: CreatedUserParameter) {
     return {
       userId: this.expect.any(String),
-      email: createdUserParameters[parameter.index],
+      email: createdUserParameters[parameter.index].email,
       createdAt: this.expect.any(Date),
     };
   }
@@ -48,7 +48,8 @@ export class WhenUsersAreCreatedTestBuilder {
     if (parameter.index === 0) return this.timeCreationStartedInMs;
 
     const position = this.getIndexForCreatedOfUserResultForDescendingOrdering(parameter.index);
-    const predecessorUser = this.creationOfUserResultInDescendingOrder[position - 1];
+    const predecessorPosition = this.getPositionOfUserCreatedBeforeUserAtPosition(position);
+    const predecessorUser = this.creationOfUserResultInDescendingOrder[predecessorPosition];
 
     return transformDateToMs(predecessorUser.createdAt);
   }
@@ -57,9 +58,10 @@ export class WhenUsersAreCreatedTestBuilder {
     if (parameter.index === createdUserParameters.length - 1) return this.timeCreationEndedInMs;
 
     const position = this.getIndexForCreatedOfUserResultForDescendingOrdering(parameter.index);
-    const predecessorUser = this.creationOfUserResultInDescendingOrder[position + 1];
+    const successorPosition = this.getPositionOfUserCreatedAfterUserAtPosition(position);
+    const successorUser = this.creationOfUserResultInDescendingOrder[successorPosition];
 
-    return transformDateToMs(predecessorUser.createdAt);
+    return transformDateToMs(successorUser.createdAt);
   }
 
   isUserIdsOfCreatedUsersUnique() {
@@ -79,6 +81,14 @@ export class WhenUsersAreCreatedTestBuilder {
   async getActualFindUserResultForUsingUnCreatedUserParameter(parameter: UnCreatedUserParameter) {
     const { userId } = parameter;
     return this.userService.findUser({ userId });
+  }
+
+  private getPositionOfUserCreatedBeforeUserAtPosition(position: number) {
+    return Math.min(position + 1, this.creationOfUserResultInDescendingOrder.length - 1);
+  }
+
+  private getPositionOfUserCreatedAfterUserAtPosition(position: number) {
+    return Math.max(position - 1, 0);
   }
 
   private getPostIdOfUserAtPosition(position: number) {
