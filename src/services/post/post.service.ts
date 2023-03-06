@@ -57,7 +57,12 @@ export class PostService {
   }
 
   async getPostById(postId: string): Promise<PostQueryResult> {
-    throw new Error();
+    const post = await this.repository.findOneById(postId);
+    if (post == null) {
+      return { isFound: () => false, getData: () => null };
+    } else {
+      return { isFound: () => true, getData: () => post };
+    }
   }
 
   async deletePost(post: PostToBeDeleted): Promise<boolean> {
