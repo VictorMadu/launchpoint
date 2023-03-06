@@ -52,6 +52,8 @@ export class PostService {
       'createdAt',
       'lastUpdatedAt',
     ]);
+
+    // TODO: When post does not exist
   }
 
   async deletePost(post: PostToBeDeleted): Promise<boolean> {
