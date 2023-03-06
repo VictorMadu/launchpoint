@@ -3,17 +3,27 @@ import { Controller, Delete, Get, Post, Put } from '@nestjs/common';
 @Controller('api')
 export class RestController {
   @Post('users')
-  async createUser() {}
+  async createUser() {
+    return;
+  }
 
   @Post('posts')
-  async createPost() {}
+  async createPost() {
+    return;
+  }
 
   @Get('posts')
-  async getPosts() {}
+  async getPosts() {
+    return;
+  }
 
   @Put('posts')
-  async updatePosts() {}
+  async updatePosts() {
+    return;
+  }
 
   @Delete('posts')
-  async deletePost() {}
+  async deletePost() {
+    return;
+  }
 }

@@ -9,16 +9,16 @@ import {
 } from 'src/services/user/user.service';
 import { Injectable } from '@nestjs/common';
 import mongoose from 'mongoose';
-import { UserTestBuilder } from '../test-builder/user.test-builder';
 import { UserServiceData } from './user-service.data';
 import { UserErrorReason } from 'src/services/user/user.error';
+import { EventEmitter } from 'stream';
 
-@Injectable()
 export class UserServiceMock {
-  constructor(private userServiceData: UserServiceData) {}
+  private userServiceData = UserServiceData.getInstance();
 
   async createUser(userToBeCreated: UserToBeCreated): Promise<UserCreationResult> {
     const user = this.userServiceData.getUserByEmail(userToBeCreated.email);
+
     if (user == null) {
       return { getErrorReason: () => UserErrorReason.DUPLICATE_EMAIL, getUser: () => null };
     } else {

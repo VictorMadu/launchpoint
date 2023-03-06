@@ -1,5 +1,10 @@
 import Pagination from 'src/services/common/types/pagination';
-import { Post, PostToBeDeleted, PostToBeUpdated } from 'src/services/post/post.service';
+import {
+  Post,
+  PostQueryResult,
+  PostToBeDeleted,
+  PostToBeUpdated,
+} from 'src/services/post/post.service';
 import { PostToBeCreated } from 'src/services/post/post.service';
 import { PostServiceData } from './post-service.data';
 
@@ -32,6 +37,15 @@ export class PostServiceMock {
       ...post,
       ...updateDetails.updates,
     };
+  }
+
+  async getPostById(postId: string): Promise<PostQueryResult> {
+    const post = this.postServiceData.getPostById(postId);
+    if (post == null) {
+      return { isFound: () => false, getData: () => null };
+    } else {
+      return { isFound: () => true, getData: () => post };
+    }
   }
 
   async deletePost(deleteDetails: PostToBeDeleted) {
