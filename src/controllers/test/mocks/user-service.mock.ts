@@ -19,10 +19,22 @@ export class UserServiceMock {
   async createUser(userToBeCreated: UserToBeCreated): Promise<UserCreationResult> {
     const user = this.userServiceData.getUserByEmail(userToBeCreated.email);
 
-    if (user == null) {
+    const userId = new mongoose.Types.ObjectId().toString();
+    const createdAt = new Date();
+
+    const isUserWithEmailAlreadyExisting = user != null;
+
+    if (isUserWithEmailAlreadyExisting) {
       return { getErrorReason: () => UserErrorReason.DUPLICATE_EMAIL, getUser: () => null };
     } else {
-      return { getErrorReason: () => null, getUser: () => user };
+      return {
+        getErrorReason: () => null,
+        getUser: () => ({
+          userId,
+          email: userToBeCreated.email,
+          createdAt,
+        }),
+      };
     }
   }
 

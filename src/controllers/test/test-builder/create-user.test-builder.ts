@@ -14,10 +14,62 @@ import { Listener, UserServiceObservableMock } from '../mocks/user-service-obser
 import { IdGenerator } from '../mocks/id-generator';
 
 class CreateUserServerListener implements Listener<'createUser'> {
-  constructor(private createUserTestBuilder: CreateUserTestBuilder) {}
+  private result: UserCreationResult<boolean> | null = null;
+  private arg: UserToBeCreated | null = null;
+
+  constructor(private userService: UserServiceObservableMock) {
+    this.userService.listen('createUser', this);
+  }
 
   notify(event: { arg: UserToBeCreated; result: UserCreationResult<boolean> }): void {
-    this.createUserTestBuilder.setCreateUserServiceResult(event.result);
+    this.result = event.result;
+    this.arg = event.arg;
+    this.userService.remove('createUser', this);
+  }
+
+  getResult() {
+    return this.result;
+  }
+
+  getArg() {
+    return this.arg;
+  }
+}
+
+export class ActualResultManager {
+  private response: Request.Response;
+  private createUserServerListener = new CreateUserServerListener(this.userService);
+
+  constructor(private userService: UserServiceObservableMock, private requestBody: any) {}
+
+  async makeRequest(request: typeof Request, server: Server, path: string) {
+    this.response = await request(server).post(path).send(this.requestBody);
+  }
+
+  getStatusCode() {
+    return this.response.statusCode;
+  }
+
+  getResponseBody() {
+    return this.response.body;
+  }
+
+  getReturnedUserFromUserService() {
+    const result = this.createUserServerListener.getResult();
+    const user = result?.getUser();
+    const errorReason = result?.getErrorReason();
+
+    const wasNotCalled = user === undefined && errorReason === undefined;
+    const hasAnyErrorReason = user == null || errorReason != null;
+
+    if (wasNotCalled) return undefined;
+    if (hasAnyErrorReason) return null;
+
+    return {
+      userId: user?.userId,
+      email: user?.email,
+      createdAt: user?.createdAt,
+    };
   }
 }
 
@@ -26,9 +78,6 @@ export class CreateUserTestBuilder {
   private validParameterTestManager = new ValidParameterTestManager(this);
   private inValidParameterTestManager = new InValidParameterTestManager(this);
   private duplicateEmailParameterTestManager = new DuplicateEmailParameterTestManager(this);
-  private createUserServiceResult: UserCreationResult<boolean> | null = null;
-  private listener = new CreateUserServerListener(this);
-  private response: Request.Response;
   private userService: UserServiceObservableMock;
   private server: Server;
 
@@ -54,17 +103,12 @@ export class CreateUserTestBuilder {
     return this.getTestManagerForParamterAndSet(parameter);
   }
 
-  async sendRequest(requestBody: RequestBody) {
-    this.userService.listen('createUser', this.listener);
-    this.response = await this.request(this.server).post(this.path).send(requestBody);
-  }
+  async sendRequest(requestBody: RequestBody, parameterManager: TestManager<Parameter>) {
+    const actualResultManager = new ActualResultManager(this.userService, requestBody);
+    await actualResultManager.makeRequest(this.request, this.server, this.path);
 
-  getStatusCode() {
-    return this.response.statusCode;
-  }
-
-  getResponseBody() {
-    return this.response.body;
+    parameterManager.setActualResultManager(actualResultManager);
+    return actualResultManager;
   }
 
   getExpect() {
@@ -73,28 +117,6 @@ export class CreateUserTestBuilder {
 
   getIdGenerator() {
     return this.idGenerator;
-  }
-
-  setCreateUserServiceResult(createUserServiceResult: UserCreationResult<boolean>) {
-    this.createUserServiceResult = createUserServiceResult;
-  }
-
-  getUserFromUserService() {
-    return this.createUserServiceResult?.getUser();
-  }
-
-  getReturnedUserFromUserService() {
-    const user = this.getUserFromUserService();
-
-    if (user != null) {
-      return {
-        userId: user?.userId,
-        email: user?.email,
-        createdAt: user?.createdAt,
-      };
-    } else {
-      return user;
-    }
   }
 
   private getTestManagerForParamterAndSet(parameter: Parameter): TestManager<Parameter> {
@@ -127,6 +149,7 @@ export type ParameterManager<T extends Parameter = Parameter> = TestManager<T>;
 
 interface TestManager<T extends Parameter> {
   setParamter(paramter: T): void;
+  setActualResultManager(actualResultManager: ActualResultManager): void;
   getRequestBody(): RequestBody;
   getExpectedStatusCode(): number;
   getExpectedResponseBody(): any;
@@ -144,18 +167,24 @@ class ValidParameterTestManager implements TestManager<ValidParameter> {
   private idGenerator: IdGenerator = this.createUserTestBuilder.getIdGenerator();
   private expect: jest.Expect = this.createUserTestBuilder.getExpect();
   private paramter: ValidParameter;
-  private parameters: ValidParameter[] = [
-    {
-      ctx: { email: userServiceData.getUnExistingUser().email },
-      type: 'valid_request_body_data',
-      id: this.idGenerator.getNextId(),
-    },
-    {
-      ctx: { email: userServiceData.getUnExistingUser().email },
-      type: 'valid_request_body_data',
-      id: this.idGenerator.getNextId(),
-    },
-  ];
+  private actualResultManager: ActualResultManager;
+  private parameters: ValidParameter[] = _.map(_.range(2), (): ValidParameter => {
+    const email = userServiceData.getUnExistingUser().email;
+    const type = 'valid_request_body_data';
+    const id = this.idGenerator.getNextId();
+    const info = JSON.stringify(
+      {
+        id,
+        type,
+        email,
+        description: 'We assume that the email thats not exist in the system already',
+      },
+      null,
+      2,
+    );
+
+    return { email, type, id, info };
+  });
 
   constructor(private createUserTestBuilder: CreateUserTestBuilder) {}
 
@@ -164,8 +193,7 @@ class ValidParameterTestManager implements TestManager<ValidParameter> {
   }
 
   getRequestBody(): RequestBody {
-    console.log('ValidParameterTestManager', this.paramter);
-    const email = this.paramter.ctx.email;
+    const email = this.paramter.email;
     return { email };
   }
 
@@ -174,7 +202,7 @@ class ValidParameterTestManager implements TestManager<ValidParameter> {
   }
 
   getExpectedResponseBody() {
-    const email = this.paramter.ctx.email;
+    const email = this.paramter.email;
     return {
       userId: this.expect.any(String),
       email,
@@ -187,12 +215,16 @@ class ValidParameterTestManager implements TestManager<ValidParameter> {
   }
 
   getExpectedReturnedUserFromUserService() {
-    const user = this.createUserTestBuilder.getUserFromUserService();
+    const user = this.actualResultManager.getReturnedUserFromUserService();
     return {
       userId: user?.userId,
       email: user?.email,
       createdAt: user?.createdAt,
     };
+  }
+
+  setActualResultManager(actualResultManager: ActualResultManager): void {
+    this.actualResultManager = actualResultManager;
   }
 }
 
@@ -200,18 +232,30 @@ class InValidParameterTestManager implements TestManager<InvalidParameter> {
   private idGenerator: IdGenerator = this.createUserTestBuilder.getIdGenerator();
   private expect: jest.Expect = this.createUserTestBuilder.getExpect();
   private paramter: InvalidParameter;
-  private parameters: InvalidParameter[] = [
-    {
-      ctx: { email: 'user1@gm', errorType: 'INVALID_EMAIL' },
-      type: 'invalid_request_body_data',
-      id: this.idGenerator.getNextId(),
+  private actualResultManager: ActualResultManager;
+  private parameters: InvalidParameter[] = _.map(
+    ['user1@gm', 'user2'],
+    (inValidEmail): InvalidParameter => {
+      const id = this.idGenerator.getNextId();
+      const email = inValidEmail;
+      const type = 'invalid_request_body_data';
+      const errorType = 'INVALID_EMAIL';
+      const info = JSON.stringify(
+        {
+          id,
+          type,
+          email,
+          errorType,
+          description:
+            'We assume that the email thats not exist in the system already and is invalid',
+        },
+        null,
+        2,
+      );
+
+      return { email, errorType, type, id, info };
     },
-    {
-      ctx: { email: 'user2', errorType: 'INVALID_EMAIL' },
-      type: 'invalid_request_body_data',
-      id: this.idGenerator.getNextId(),
-    },
-  ];
+  );
 
   constructor(private createUserTestBuilder: CreateUserTestBuilder) {}
 
@@ -220,17 +264,17 @@ class InValidParameterTestManager implements TestManager<InvalidParameter> {
   }
 
   getRequestBody(): RequestBody {
-    const email = this.paramter.ctx.email;
+    const email = this.paramter.email;
     return { email };
   }
 
   getExpectedStatusCode() {
-    return 401;
+    return 400;
   }
 
   getExpectedResponseBody() {
     return {
-      error: this.paramter.ctx.errorType,
+      errors: [this.paramter.errorType],
     };
   }
 
@@ -242,26 +286,38 @@ class InValidParameterTestManager implements TestManager<InvalidParameter> {
   getExpectedReturnedUserFromUserService() {
     return undefined;
   }
+
+  setActualResultManager(actualResultManager: ActualResultManager): void {
+    this.actualResultManager = actualResultManager;
+  }
 }
 
 class DuplicateEmailParameterTestManager implements TestManager<DuplicateEmailParameter> {
   private idGenerator: IdGenerator = this.createUserTestBuilder.getIdGenerator();
   private expect: jest.Expect = this.createUserTestBuilder.getExpect();
   private userServiceData = UserServiceData.getInstance();
+  private actualResultManager: ActualResultManager;
 
   private paramter: DuplicateEmailParameter;
-  private parameters: DuplicateEmailParameter[] = [
-    {
-      ctx: { email: this.userServiceData.getNextExistingUser().email, errorType: 'INVALID_EMAIL' },
-      type: 'duplicate_email_request_body_data',
-      id: this.idGenerator.getNextId(),
-    },
-    {
-      ctx: { email: this.userServiceData.getNextExistingUser().email, errorType: 'INVALID_EMAIL' },
-      type: 'duplicate_email_request_body_data',
-      id: this.idGenerator.getNextId(),
-    },
-  ];
+  private parameters: DuplicateEmailParameter[] = _.map(_.range(2), (): DuplicateEmailParameter => {
+    const id = this.idGenerator.getNextId();
+    const email = this.userServiceData.getNextExistingUser().email;
+    const type = 'duplicate_email_request_body_data';
+    const errorType = 'INVALID_EMAIL';
+    const info = JSON.stringify(
+      {
+        id,
+        type,
+        email,
+        errorType,
+        description: 'We assume that the email exist in the system already and is invalid',
+      },
+      null,
+      2,
+    );
+
+    return { email, errorType, type, id, info };
+  });
 
   constructor(private createUserTestBuilder: CreateUserTestBuilder) {}
 
@@ -270,17 +326,17 @@ class DuplicateEmailParameterTestManager implements TestManager<DuplicateEmailPa
   }
 
   getRequestBody(): RequestBody {
-    const email = this.paramter.ctx.email;
+    const email = this.paramter.email;
     return { email };
   }
 
   getExpectedStatusCode() {
-    return 401;
+    return 400;
   }
 
   getExpectedResponseBody() {
     return {
-      error: this.paramter.ctx.errorType,
+      errors: [this.paramter.errorType],
     };
   }
 
@@ -291,6 +347,10 @@ class DuplicateEmailParameterTestManager implements TestManager<DuplicateEmailPa
   getExpectedReturnedUserFromUserService() {
     return null;
   }
+
+  setActualResultManager(actualResultManager: ActualResultManager): void {
+    this.actualResultManager = actualResultManager;
+  }
 }
 
 // =============================================== Parameters =======================================
@@ -298,30 +358,24 @@ class DuplicateEmailParameterTestManager implements TestManager<DuplicateEmailPa
 interface BaseParameter {
   id: number;
   type: string;
-  ctx: any;
+  info: string;
 }
 
 interface ValidParameter extends BaseParameter {
   type: 'valid_request_body_data';
-  ctx: {
-    email: string;
-  };
+  email: string;
 }
 
 interface InvalidParameter extends BaseParameter {
   type: 'invalid_request_body_data';
-  ctx: {
-    email: string;
-    errorType: string;
-  };
+  email: string;
+  errorType: string;
 }
 
 interface DuplicateEmailParameter extends BaseParameter {
   type: 'duplicate_email_request_body_data';
-  ctx: {
-    email: string;
-    errorType: string;
-  };
+  email: string;
+  errorType: string;
 }
 
 type Parameter = ValidParameter | InvalidParameter | DuplicateEmailParameter;

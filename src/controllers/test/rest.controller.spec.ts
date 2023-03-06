@@ -9,7 +9,11 @@ import { PostServiceMock } from './mocks/post-service.mock';
 import { UserServiceData } from './mocks/user-service.data';
 import { UserServiceMock } from './mocks/user-service.mock';
 import { Server } from 'http';
-import { CreateUserTestBuilder, ParameterManager } from './test-builder/create-user.test-builder';
+import {
+  ActualResultManager,
+  CreateUserTestBuilder,
+  ParameterManager,
+} from './test-builder/create-user.test-builder';
 import { UserServiceObservableMock } from './mocks/user-service-observable.mock';
 
 describe('Rest API Controller', () => {
@@ -43,10 +47,11 @@ describe('Rest API Controller', () => {
     });
 
     describe.each(paramters)(
-      'When a user with in parameterId: `$id` and parameterType: `$type` type is being created',
+      'When a user is being created using parameter of info => `$info`',
       (parameter) => {
         let requestBody: any;
         let parameterManager: ParameterManager;
+        let actualResultManager: ActualResultManager;
 
         let actualStatusCode: number;
         let actualResponseBody: any;
@@ -60,16 +65,19 @@ describe('Rest API Controller', () => {
         beforeAll(async () => {
           parameterManager = createUserTestBuilder.getParameterManager(parameter);
           requestBody = parameterManager.getRequestBody();
-          await createUserTestBuilder.sendRequest(requestBody);
 
-          actualStatusCode = createUserTestBuilder.getStatusCode();
+          actualResultManager = await createUserTestBuilder.sendRequest(
+            requestBody,
+            parameterManager,
+          );
+
+          actualStatusCode = actualResultManager.getStatusCode();
           expectedStatusCode = parameterManager.getExpectedStatusCode();
 
-          actualResponseBody = createUserTestBuilder.getResponseBody();
+          actualResponseBody = actualResultManager.getResponseBody();
           expectedResponseBody = parameterManager.getExpectedResponseBody();
 
-          actualReturnedUserFromUserService =
-            createUserTestBuilder.getReturnedUserFromUserService();
+          actualReturnedUserFromUserService = actualResultManager.getReturnedUserFromUserService();
 
           expectedReturnedUserFromUserService =
             parameterManager.getExpectedReturnedUserFromUserService();

@@ -8,7 +8,7 @@ export class UserServiceData {
   private static instance: UserServiceData | null = null;
 
   private currentUserIndex = 0;
-  private currentUnExistingUserIndex = totalExistingUsers;
+  private currentUnExistingUserIndex = totalExistingUsers + 1;
 
   static getInstance(): UserServiceData {
     if (UserServiceData.instance == null) {
@@ -18,12 +18,12 @@ export class UserServiceData {
     return UserServiceData.instance;
   }
 
-  getUserById(userId: string) {
+  getUserById(userId: string): User | undefined {
     const user: User | undefined = usersStore.userIdIndex[userId];
     return user;
   }
 
-  getUserByEmail(email: string) {
+  getUserByEmail(email: string): User | undefined {
     const user: User | undefined = usersStore.emailIndex[email];
     return user;
   }
