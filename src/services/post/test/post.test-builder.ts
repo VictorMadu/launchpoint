@@ -1,5 +1,5 @@
 import * as _ from 'lodash';
-import { PostService, Post } from '../post.service';
+import { PostService, Post, PostQueryResult } from '../post.service';
 import { transformDateToMs } from 'src/services/common/date-to-ms';
 import Pagination from 'src/services/common/types/pagination';
 
@@ -162,6 +162,56 @@ export class WhenSequenceOfPostAreCreatedTestBuilder {
     if (index === 0) return this.timeCreationEndedInMs as number;
     return this.getActualCreatedAt(index - 1);
   }
+
+  getExistingPostIdParameters(): PostIdParamter[] {
+    return _.map(_.range(posts.length), (index): PostIdParamter => {
+      return { id: index, type: 'existing' };
+    });
+  }
+
+  getUnExistingPostIdParameters(): PostIdParamter[] {
+    return _.map(_.range(idOfUnExistingPosts.length), (index): PostIdParamter => {
+      return { id: index, type: 'unexisting' };
+    });
+  }
+
+  async getActualResultOfGetPostByIdForParameter(paramter: PostIdParamter) {
+    const postId = this.getPostIdOfPostIdParameter(paramter);
+    return await this.postService.getPostById(postId);
+  }
+
+  getExpectedResultOfGetExistingPostByIdForParameter(paramter: PostIdParamter): PostQueryResult {
+    const id = paramter.id;
+    return {
+      isFound: () => true,
+      getData: () => this.postsInDescendingOrderOfCreation[id],
+    };
+  }
+
+  getExpectedResultOfGetUnExistingPostByIdForParameter(paramter: PostIdParamter): PostQueryResult {
+    return {
+      isFound: () => false,
+      getData: () => null,
+    };
+  }
+
+  private getPostIdOfPostIdParameter(parameter: PostIdParamter) {
+    const { id, type } = parameter;
+    let postId: string;
+
+    if (type === 'existing') {
+      postId = this.postsInDescendingOrderOfCreation[id].postId;
+    } else {
+      postId = idOfUnExistingPosts[id];
+    }
+
+    return postId;
+  }
+}
+
+interface PostIdParamter {
+  id: number;
+  type: 'existing' | 'unexisting';
 }
 
 export class WhenPostIsUpdatedTestBuilder {
@@ -332,3 +382,5 @@ const posts = [
     content: 'Content of Post 4',
   },
 ];
+
+const idOfUnExistingPosts = ['63ff5553cdc1798683083fa0', '63ff5553cdc1798683083fa1'];

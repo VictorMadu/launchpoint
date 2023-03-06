@@ -139,6 +139,32 @@ describe('`Post`', () => {
       );
     });
 
+    describe('`getPostById`', () => {
+      it.each(testBuilder4.getExistingPostIdParameters())(
+        'should return correct output for existing post of paramter $parameter',
+        async (parameter) => {
+          const actual = await testBuilder4.getActualResultOfGetPostByIdForParameter(parameter);
+          const expected =
+            testBuilder4.getExpectedResultOfGetExistingPostByIdForParameter(parameter);
+
+          expect(actual.isFound()).toBe(expected.isFound());
+          expect(actual.getData()).toEqual(actual.getData());
+        },
+      );
+
+      it.each(testBuilder4.getUnExistingPostIdParameters())(
+        'should return correct output for non-existing post of paramter $parameter',
+        async (parameter) => {
+          const actual = await testBuilder4.getActualResultOfGetPostByIdForParameter(parameter);
+          const expected =
+            testBuilder4.getExpectedResultOfGetUnExistingPostByIdForParameter(parameter);
+
+          expect(actual.isFound()).toBe(expected.isFound());
+          expect(actual.getData()).toEqual(actual.getData());
+        },
+      );
+    });
+
     describe('`getTotalPosts`', () => {
       it('should return correct total posts', async () => {
         const actual = await testBuilder4.getActualPostsLength();

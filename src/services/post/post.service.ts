@@ -56,6 +56,10 @@ export class PostService {
     // TODO: When post does not exist
   }
 
+  async getPostById(postId: string): Promise<PostQueryResult> {
+    throw new Error();
+  }
+
   async deletePost(post: PostToBeDeleted): Promise<boolean> {
     const updatedColumnResult = await this.repository.deleteOne(post.postId);
     return updatedColumnResult.wasSuccessful();
@@ -64,6 +68,11 @@ export class PostService {
   async clearDb(): Promise<void> {
     await this.repository.clearDb();
   }
+}
+
+export interface PostQueryResult<T extends boolean = boolean> {
+  isFound(): T;
+  getData(): T extends true ? Post : null;
 }
 
 export interface Post {
